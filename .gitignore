@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Oracle Local Credentials (Do not commit)
+.oracle_credentials/
