@@ -110,7 +110,7 @@ export default function YouTubeInfluencerWorkspace() {
 
   const handleTogglePlay = () => {
     if (!generatedPackage) {
-      error("No Script", "Please generate a script in the right panel first!");
+      error("No Script", "Please generate a script in the middle panel first!");
       return;
     }
     const nextPlayState = !isPlaying;
@@ -228,68 +228,79 @@ export default function YouTubeInfluencerWorkspace() {
         </div>
       </header>
 
-      {/* 2. Main Editor Layout: Left Panel, Center Canvas, Right Panel */}
+      {/* 2. Main Editor Layout: Script Editor -> Center Canvas -> Avatar Studio */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* LEFT PANEL: Asset Library & Avatar Studio */}
-        <aside className="hidden lg:flex flex-col w-80 bg-white dark:bg-[#141414] border-r border-slate-200 dark:border-white/10 shrink-0 z-10 overflow-y-auto">
-          <div className="p-4 border-b border-slate-100 dark:border-white/5">
+        {/* LEFT PANEL: Script & Configuration (Step 1) */}
+        <aside className="w-full lg:w-96 flex flex-col bg-white dark:bg-[#141414] border-r border-slate-200 dark:border-white/10 shrink-0 z-10 h-full">
+          <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <UserCircle2 className="w-4 h-4" /> Avatar Presenter
+              <Type className="w-4 h-4" /> Script Editor
             </h2>
           </div>
           
-          <div className="p-4 space-y-6">
-            {/* Library */}
-            <div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 font-medium">Select Presenter</p>
-              <div className="grid grid-cols-2 gap-3">
-                {avatars.map(avatar => (
-                  <div 
-                    key={avatar.id}
-                    onClick={() => setSelectedAvatarId(avatar.id)}
-                    className={`relative aspect-[3/4] rounded-xl overflow-hidden cursor-pointer group transition-all ring-2 ${
-                      selectedAvatarId === avatar.id ? "ring-indigo-500 shadow-lg" : "ring-transparent hover:ring-slate-300 dark:hover:ring-white/20"
-                    }`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={avatar.imageUrl} alt={avatar.name} className="w-full h-full object-cover" />
-                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-6">
-                      <span className="text-white text-[10px] font-medium block truncate">{avatar.name}</span>
-                    </div>
-                    {selectedAvatarId === avatar.id && (
-                      <div className="absolute top-2 right-2 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-sm">
-                        <CheckCircle2 className="w-3 h-3" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            
+            {/* Generator Form */}
+            <div className="space-y-3">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                1. Video Topic or Concept
+              </label>
+              <textarea
+                rows={3}
+                value={promptInput}
+                onChange={(e) => setPromptInput(e.target.value)}
+                placeholder="Describe your video topic here... (e.g. 3 signs your AC is leaking freon)"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0A0A0A] border border-slate-200 dark:border-white/10 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none placeholder-slate-400"
+              />
+              <button
+                disabled={isGeneratingScript || !promptInput.trim()}
+                onClick={handleGenerateScript}
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
+              >
+                {isGeneratingScript ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Drafting Script...</>
+                ) : (
+                  <><Sparkles className="w-4 h-4" /> AI Generate Script</>
+                )}
+              </button>
             </div>
 
-            {/* Custom Gen */}
-            <div className="pt-4 border-t border-slate-100 dark:border-white/5">
-               <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 font-medium flex items-center gap-1">
-                 <Wand2 className="w-3.5 h-3.5" /> Generate Custom Persona
-               </p>
-               <div className="space-y-3">
-                 <textarea
-                   rows={2}
-                   value={customAvatarPrompt}
-                   onChange={(e) => setCustomAvatarPrompt(e.target.value)}
-                   placeholder="e.g. 40-year-old male HVAC technician..."
-                   className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0A0A0A] border border-slate-200 dark:border-white/10 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
-                 />
-                 <button
-                   disabled={isGeneratingAvatar || !customAvatarPrompt.trim()}
-                   onClick={handleGenerateAvatar}
-                   className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
-                 >
-                   {isGeneratingAvatar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
-                   Generate Presenter
-                 </button>
-               </div>
-            </div>
+            {/* Generated Script Display */}
+            {generatedPackage ? (
+              <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Active Script
+                  </label>
+                  <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded font-mono">
+                    ~{playbackDuration}s duration
+                  </span>
+                </div>
+                
+                <div className="bg-slate-50 dark:bg-[#0A0A0A] border border-slate-200 dark:border-white/10 rounded-xl p-3">
+                  <p className="text-xs font-bold text-slate-900 dark:text-white mb-2">
+                    {generatedPackage.title}
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
+                    {generatedPackage.script}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl">
+                  <p className="text-xs font-medium text-indigo-800 dark:text-indigo-300 flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+                    Your script is ready! Click the Play button on the video player to synthesize and preview.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="pt-8 flex flex-col items-center justify-center text-center px-4 opacity-50">
+                <Layout className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Empty Script</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Enter a topic above and let AI generate your complete video script and scenes.</p>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -377,76 +388,65 @@ export default function YouTubeInfluencerWorkspace() {
           </div>
         </main>
 
-        {/* RIGHT PANEL: Script & Configuration */}
-        <aside className="w-full lg:w-96 flex flex-col bg-white dark:bg-[#141414] border-l border-slate-200 dark:border-white/10 shrink-0 z-10 h-full">
-          <div className="p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+        {/* RIGHT PANEL: Asset Library & Avatar Studio (Step 2) */}
+        <aside className="hidden lg:flex flex-col w-80 bg-white dark:bg-[#141414] border-l border-slate-200 dark:border-white/10 shrink-0 z-10 overflow-y-auto">
+          <div className="p-4 border-b border-slate-100 dark:border-white/5">
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <Type className="w-4 h-4" /> Script Editor
+              <UserCircle2 className="w-4 h-4" /> 2. Avatar Presenter
             </h2>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            
-            {/* Generator Form */}
-            <div className="space-y-3">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                1. Video Topic or Concept
-              </label>
-              <textarea
-                rows={3}
-                value={promptInput}
-                onChange={(e) => setPromptInput(e.target.value)}
-                placeholder="Describe your video topic here... (e.g. 3 signs your AC is leaking freon)"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0A0A0A] border border-slate-200 dark:border-white/10 rounded-xl text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none placeholder-slate-400"
-              />
-              <button
-                disabled={isGeneratingScript || !promptInput.trim()}
-                onClick={handleGenerateScript}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-colors shadow-sm"
-              >
-                {isGeneratingScript ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Drafting Script...</>
-                ) : (
-                  <><Sparkles className="w-4 h-4" /> AI Generate Script</>
-                )}
-              </button>
+          <div className="p-4 space-y-6">
+            {/* Library */}
+            <div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 font-medium">Select Presenter</p>
+              <div className="grid grid-cols-2 gap-3">
+                {avatars.map(avatar => (
+                  <div 
+                    key={avatar.id}
+                    onClick={() => setSelectedAvatarId(avatar.id)}
+                    className={`relative aspect-[3/4] rounded-xl overflow-hidden cursor-pointer group transition-all ring-2 ${
+                      selectedAvatarId === avatar.id ? "ring-indigo-500 shadow-lg" : "ring-transparent hover:ring-slate-300 dark:hover:ring-white/20"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={avatar.imageUrl} alt={avatar.name} className="w-full h-full object-cover" />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 pt-6">
+                      <span className="text-white text-[10px] font-medium block truncate">{avatar.name}</span>
+                    </div>
+                    {selectedAvatarId === avatar.id && (
+                      <div className="absolute top-2 right-2 w-5 h-5 bg-indigo-500 rounded-full flex items-center justify-center text-white shadow-sm">
+                        <CheckCircle2 className="w-3 h-3" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Generated Script Display */}
-            {generatedPackage ? (
-              <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/5 animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Active Script
-                  </label>
-                  <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-white/5 px-2 py-0.5 rounded font-mono">
-                    ~{playbackDuration}s duration
-                  </span>
-                </div>
-                
-                <div className="bg-slate-50 dark:bg-[#0A0A0A] border border-slate-200 dark:border-white/10 rounded-xl p-3">
-                  <p className="text-xs font-bold text-slate-900 dark:text-white mb-2">
-                    {generatedPackage.title}
-                  </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
-                    {generatedPackage.script}
-                  </p>
-                </div>
-
-                <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-xl">
-                  <p className="text-xs font-medium text-indigo-800 dark:text-indigo-300 flex items-start gap-2">
-                    <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
-                    Your script is ready! Click the Play button on the video player to synthesize and preview.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="pt-8 flex flex-col items-center justify-center text-center px-4 opacity-50">
-                <Layout className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-3" />
-                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Empty Script</p>
-                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Enter a topic above and let AI generate your complete video script and scenes.</p>
-              </div>
-            )}
+            {/* Custom Gen */}
+            <div className="pt-4 border-t border-slate-100 dark:border-white/5">
+               <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 font-medium flex items-center gap-1">
+                 <Wand2 className="w-3.5 h-3.5" /> Generate Custom Persona
+               </p>
+               <div className="space-y-3">
+                 <textarea
+                   rows={2}
+                   value={customAvatarPrompt}
+                   onChange={(e) => setCustomAvatarPrompt(e.target.value)}
+                   placeholder="e.g. 40-year-old male HVAC technician..."
+                   className="w-full px-3 py-2 bg-slate-50 dark:bg-[#0A0A0A] border border-slate-200 dark:border-white/10 rounded-lg text-xs text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                 />
+                 <button
+                   disabled={isGeneratingAvatar || !customAvatarPrompt.trim()}
+                   onClick={handleGenerateAvatar}
+                   className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/10 disabled:opacity-50 text-slate-800 dark:text-slate-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+                 >
+                   {isGeneratingAvatar ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                   Generate Presenter
+                 </button>
+               </div>
+            </div>
           </div>
         </aside>
 
