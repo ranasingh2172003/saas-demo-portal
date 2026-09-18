@@ -7,7 +7,6 @@
       "enableNonRootDocker": "true",
       "moby": "true"
     },
-    "ghcr.io/devcontainers-contrib/features/cypress-dependencies:1": {}
   },
   "forwardPorts": [3000, 4442, 4443, 4444],
   "postCreateCommand": "npm install",
