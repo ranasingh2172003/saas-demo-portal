@@ -41,7 +41,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   {
     name: "Master Dashboard",
-    href: "/",
+    href: "/sbo/dashboard",
     icon: LayoutDashboard,
   },
   {
@@ -338,10 +338,10 @@ export function DashboardLayoutInner({
                 href="/"
                 className="text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors flex items-center gap-1.5"
               >
-                <span className="font-semibold">Apex Cooling</span>
+                <span className="hidden sm:inline font-semibold">Apex Cooling</span>
               </Link>
-              <ChevronRight className="w-4 h-4 mx-1.5 text-slate-400" />
-              <span className="text-slate-900 dark:text-white font-bold truncate max-w-[140px] sm:max-w-none">
+              <ChevronRight className="hidden sm:block w-4 h-4 mx-1.5 text-slate-400" />
+              <span className="text-slate-900 dark:text-white font-bold truncate max-w-[100px] sm:max-w-none">
                 {currentView}
               </span>
             </nav>
@@ -352,12 +352,12 @@ export function DashboardLayoutInner({
             {/* Command Palette Trigger */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-800 rounded-xl transition-colors border border-slate-200/70 dark:border-slate-700/60"
+              className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 text-xs text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-800 rounded-xl transition-colors border border-slate-200/70 dark:border-slate-700/60"
               aria-label="Open command palette"
             >
               <Search className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <span className="hidden md:inline font-medium">Search services or actions...</span>
-              <span className="md:hidden font-medium">Search</span>
+               
               <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded shadow-2xs">
                 ⌘K
               </kbd>
@@ -413,8 +413,6 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ToastProvider>
-      <DashboardLayoutInner>{children}</DashboardLayoutInner>
-    </ToastProvider>
+    <DashboardLayoutInner>{children}</DashboardLayoutInner>
   );
 }

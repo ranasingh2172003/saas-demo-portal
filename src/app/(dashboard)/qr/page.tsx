@@ -474,10 +474,10 @@ export default function QRBanners() {
           <div
             className={`transition-all duration-500 ease-out flex flex-col justify-between ${
               selectedFormat === "sticker"
-                ? "w-[300px] sm:w-[320px] rounded-2xl shadow-2xl overflow-hidden border-4"
+                ? "w-full max-w-full max-w-[320px] mx-auto mx-auto rounded-2xl shadow-2xl overflow-hidden w-full border-4"
                 : selectedFormat === "stand"
-                ? "w-[320px] sm:w-[350px] rounded-xl shadow-2xl overflow-hidden border-[6px] ring-8 ring-black/5"
-                : "w-[310px] sm:w-[330px] rounded-xl shadow-2xl overflow-hidden border-t-8 border-b-8"
+                ? "w-full max-w-[350px] mx-auto rounded-xl shadow-2xl overflow-hidden w-full border-[6px] ring-8 ring-black/5"
+                : "w-full max-w-[330px] mx-auto rounded-xl shadow-2xl overflow-hidden w-full border-t-8 border-b-8"
             } bg-white dark:bg-slate-900`}
             style={{
               borderColor: selectedColor.hex,
@@ -558,12 +558,12 @@ export default function QRBanners() {
 
           {/* Counter Stand Acrylic Foot (Only rendered in stand format) */}
           {selectedFormat === "stand" && (
-            <div className="w-[380px] h-6 bg-gradient-to-b from-slate-300 to-slate-400 dark:from-slate-700 dark:to-slate-800 rounded-b-xl shadow-xl mt-[-4px] border border-white/20" />
+            <div className="w-full max-w-[380px] mx-auto h-6 bg-gradient-to-b from-slate-300 to-slate-400 dark:from-slate-700 dark:to-slate-800 rounded-b-xl shadow-xl mt-[-4px] border border-white/20" />
           )}
 
           {/* Table Tent Fold Line Shadow (Only rendered in tent format) */}
           {selectedFormat === "tent" && (
-            <div className="w-[320px] h-3 bg-slate-400/30 blur-sm rounded-full mt-2" />
+            <div className="w-full max-w-[320px] mx-auto h-3 bg-slate-400/30 blur-sm rounded-full mt-2" />
           )}
 
         </div>

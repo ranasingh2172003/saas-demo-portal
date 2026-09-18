@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import DashboardLayout from "@/components/DashboardLayout";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +18,7 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ToastProvider } from "@/components/Toast";
 
 export default function RootLayout({
   children,
@@ -33,7 +33,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col transition-colors duration-300">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <DashboardLayout>{children}</DashboardLayout>
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </ThemeProvider>
       </body>
     </html>

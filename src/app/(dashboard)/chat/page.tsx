@@ -144,9 +144,7 @@ export default function ChatAgent() {
     "connecting" | "qr_ready" | "connected" | "logged_out"
   >("connecting");
   const status = mode === "simulator" ? "connected" : liveStatus;
-  const [liveServerUrl] = useState(
-    process.env.NEXT_PUBLIC_WHATSAPP_STREAM_URL || "http://localhost:3000/api/stream"
-  );
+  const [liveServerUrl] = useState("/api/whatsapp/stream");
   const [liveError, setLiveError] = useState<string | null>(null);
 
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -329,8 +327,22 @@ export default function ChatAgent() {
     toast.info("Incoming WhatsApp message", `${sender}: "${text.slice(0, 35)}..."`);
 
     // Simulate AI thinking delay, then display response
-    setTimeout(() => {
+    setTimeout(async () => {
       const reply = generateReply(intent.label);
+      
+      // Actually send the automated reply to the live backend!
+      if (mode === "live") {
+        try {
+          await fetch("/api/whatsapp/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ number: sender, text: reply }),
+          });
+        } catch (err) {
+          console.error("Failed to send live AI reply:", err);
+        }
+      }
+
       setMessages((prev) =>
         prev.map((m) =>
           m.id === id ? { ...m, aiReply: reply, replying: false, replied: true } : m
@@ -357,7 +369,7 @@ export default function ChatAgent() {
   }
 
   // ─── Operator Takeover Handler ─────────────────────────────────────────────
-  function handleOperatorSend(e?: React.FormEvent, presetText?: string) {
+  async function handleOperatorSend(e?: React.FormEvent, presetText?: string) {
     if (e) e.preventDefault();
     const replyContent = presetText || operatorReplyText;
     if (!replyContent.trim()) return;
@@ -366,6 +378,21 @@ export default function ChatAgent() {
     if (!targetMsg) return;
 
     const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    // Send to real backend if in live mode
+    if (mode === "live") {
+      try {
+        await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ number: targetMsg.sender, text: replyContent.trim() }),
+        });
+      } catch (err) {
+        console.error("Failed to send live message:", err);
+        toast.error("Failed to send message to live server.");
+        return;
+      }
+    }
 
     setMessages((prev) =>
       prev.map((m) =>

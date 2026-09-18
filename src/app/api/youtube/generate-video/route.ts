@@ -17,8 +17,9 @@ export async function POST(req: NextRequest) {
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Start video generation with the new `source` parameter API
-    let operation = await ai.models.generateVideos({
+    // Start the Veo operation — immediately return the operation name so the
+    // client can poll for status instead of waiting 60-180s in this request.
+    const operation = await ai.models.generateVideos({
       model: "veo-3.0-generate-preview",
       prompt,
       config: {
@@ -27,52 +28,16 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Poll until done — max ~3 minutes (18 x 10s intervals)
-    let attempts = 0;
-    while (!operation.done && attempts < 18) {
-      await new Promise((resolve) => setTimeout(resolve, 10000));
-      operation = await ai.operations.getVideosOperation({ operation });
-      attempts++;
-    }
-
-    if (!operation.done) {
-      return NextResponse.json(
-        { error: "Video generation timed out. The Veo rendering took too long. Please try a shorter/simpler prompt." },
-        { status: 408 }
-      );
-    }
-
-    const generatedVideo = operation.response?.generatedVideos?.[0];
-    if (!generatedVideo) {
-      return NextResponse.json({ error: "No video was produced by Veo." }, { status: 500 });
-    }
-
-    // The video is available via a signed URI or embedded videoBytes (base64)
-    const videoUri = generatedVideo.video?.uri;
-    const videoBytes = generatedVideo.video?.videoBytes; // base64 string, if available
-    const mimeType = generatedVideo.video?.mimeType || "video/mp4";
-
-    if (videoBytes) {
-      // Direct base64 — just return it
-      return NextResponse.json({ success: true, videoBase64: videoBytes, mimeType });
-    }
-
-    if (videoUri) {
-      // Fetch the video bytes from the URI using the API key
-      const videoRes = await fetch(`${videoUri}&key=${apiKey}`);
-      if (!videoRes.ok) {
-        throw new Error(`Failed to fetch video from URI: ${videoRes.status} ${videoRes.statusText}`);
-      }
-      const arrayBuffer = await videoRes.arrayBuffer();
-      const base64Video = Buffer.from(arrayBuffer).toString("base64");
-      return NextResponse.json({ success: true, videoBase64: base64Video, mimeType });
-    }
-
-    return NextResponse.json({ error: "Video generated but no URI or bytes returned from Veo." }, { status: 500 });
-
+    // Return the operation name/id for the client to poll with
+    return NextResponse.json({
+      success: true,
+      pending: true,
+      operationName: operation.name,
+      message: "Video generation started. Poll /api/youtube/job-status to check progress.",
+    });
   } catch (error: unknown) {
     console.error("Veo Video Generation Error:", error);
-    const message = error instanceof Error ? error.message : "Failed to generate video";
+    const message = error instanceof Error ? error.message : "Failed to start video generation";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
