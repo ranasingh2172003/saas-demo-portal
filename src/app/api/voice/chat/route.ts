@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export async function POST(req: Request) {
   try {
@@ -11,49 +8,48 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "messages array is required" }, { status: 400 });
     }
 
-    if (!process.env.GEMINI_API_KEY) {
-      // Graceful fallback for missing API key
-      return NextResponse.json({
-        reply: "I'm sorry, the AI service is not configured. Please add your GEMINI_API_KEY to .env.local.",
-      });
-    }
+    const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
+    const modelName = process.env.OLLAMA_MODEL || "nemotron-mini";
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: systemPrompt || "You are a helpful AI assistant.",
+    const payload = {
+      model: modelName,
+      messages: [
+        { role: "system", content: systemPrompt || "You are a helpful AI assistant." },
+        ...messages
+      ],
+      stream: true // Keep streaming enabled
+    };
+
+    const res = await fetch(`${ollamaUrl}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
     });
 
-    // Build chat history from all messages except the last one
-    const historyMessages = messages.slice(0, -1);
-    const chatHistory = historyMessages
-      .filter((m: { role: string; content: string }) => m.content?.trim())
-      .map((m: { role: string; content: string }) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-      }));
+    if (!res.ok) {
+      console.error("Ollama API Failed:", res.statusText);
+      return NextResponse.json({ error: "Local Ollama API Failed" }, { status: 500 });
+    }
 
-    const chat = model.startChat({ history: chatHistory });
-
-    const lastMessage = messages[messages.length - 1];
-    
-    // Use streaming to reduce latency
-    const resultStream = await chat.sendMessageStream(lastMessage.content);
-
-    const stream = new ReadableStream({
-      async start(controller) {
+    // Transform Ollama's stream (JSON lines) into standard text stream
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
         try {
-          for await (const chunk of resultStream.stream) {
-            const chunkText = chunk.text();
-            if (chunkText) {
-              controller.enqueue(new TextEncoder().encode(chunkText));
+          const text = new TextDecoder().decode(chunk);
+          const lines = text.split('\n').filter(l => l.trim() !== '');
+          for (const line of lines) {
+            const data = JSON.parse(line);
+            if (data.message && data.message.content) {
+              controller.enqueue(new TextEncoder().encode(data.message.content));
             }
           }
-          controller.close();
-        } catch (err) {
-          controller.error(err);
+        } catch (e) {
+          console.error("Error parsing Ollama stream chunk", e);
         }
       }
     });
+
+    const stream = res.body?.pipeThrough(transformStream);
 
     return new Response(stream, {
       headers: {
@@ -61,8 +57,9 @@ export async function POST(req: Request) {
         "Transfer-Encoding": "chunked",
       },
     });
+
   } catch (error: unknown) {
-    console.error("Voice Chat API Error:", error);
+    console.error("Local Voice Chat API Error:", error);
     const message = error instanceof Error ? error.message : "Failed to generate AI response";
     return new Response(message, { status: 500 });
   }
