@@ -1,12 +1,7 @@
 {
-  "name": "SaaS AI Model Lab",
+  "name": "SaaS Portal",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "enableNonRootDocker": "true",
-      "moby": "true"
-    },
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.11",
       "installTools": true
@@ -15,24 +10,21 @@
       "version": "latest"
     }
   },
-  "forwardPorts": [3000, 3001, 8880, 8881, 8998, 11434],
+  "forwardPorts": [3000],
   "portsAttributes": {
-    "3000": { "label": "Next.js App", "onAutoForward": "notify" },
-    "11434": { "label": "Ollama API", "onAutoForward": "silent" },
-    "8880": { "label": "Kokoro TTS", "onAutoForward": "silent" },
-    "8881": { "label": "Coqui XTTS-v2", "onAutoForward": "silent" },
-    "8998": { "label": "Moshi / PersonaPlex", "onAutoForward": "notify" }
+    "3000": { "label": "Next.js App", "onAutoForward": "openBrowser" }
   },
-  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postCreateCommand": "npm install",
   "customizations": {
     "vscode": {
       "extensions": [
         "dbaeumer.vscode-eslint",
-        "ms-azuretools.vscode-docker",
         "ms-python.python",
         "ms-python.vscode-pylance",
-        "rangav.vscode-thunder-client"
+        "rangav.vscode-thunder-client",
+        "bradlc.vscode-tailwindcss"
       ]
     }
   }
 }
+
