@@ -102,7 +102,7 @@ export default function VoiceReceptionist() {
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
+      const timeout = setTimeout(() => controller.abort(), 45000);
 
       const res = await fetch("/api/tts", {
         method: "POST",

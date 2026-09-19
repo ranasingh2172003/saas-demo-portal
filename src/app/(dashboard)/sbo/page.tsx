@@ -108,33 +108,32 @@ Available modules: Website, WhatsApp agent, Voice receptionist, Recruitment engi
     };
 
     try {
-      const encodedText = encodeURIComponent(text);
-      const url = `/api/tts/stream?text=${encodedText}&voice=af_alloy`;
-
-      // Try a quick HEAD-like fetch to see if backend is reachable
+      // Use POST /api/tts with a generous 45s timeout for XTTS (runs on CPU, ~7-10s per sentence)
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
+      const timeout = setTimeout(() => controller.abort(), 45000);
 
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      });
       clearTimeout(timeout);
 
       if (!response.ok) throw new Error("TTS backend unavailable");
 
-      // Backend is up — play the audio stream
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
 
       if (audioElementRef.current) {
         audioElementRef.current.src = blobUrl;
         audioElementRef.current.play().catch(() => {
-          // Autoplay blocked — fall back to browser speech
           URL.revokeObjectURL(blobUrl);
           speakViaBrowser();
         });
       }
-    } catch {
-      // Fastify TTS server not running — use browser SpeechSynthesis
-      console.info("TTS backend unavailable, using browser SpeechSynthesis fallback");
+    } catch (e) {
+      console.info("XTTS unavailable, using browser SpeechSynthesis fallback:", e);
       speakViaBrowser();
     }
   };
@@ -194,9 +193,18 @@ Available modules: Website, WhatsApp agent, Voice receptionist, Recruitment engi
         })
       });
       
-      if (chatRes.ok) {
-        const { reply } = await chatRes.json();
-        
+      if (chatRes.ok && chatRes.body) {
+        // Read streaming text response
+        const reader = chatRes.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let reply = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          reply += decoder.decode(value, { stream: true });
+        }
+        reply = reply.trim();
+
         if (reply.includes("[INITIATE_BUILD]")) {
            setTranscript(prev => [...prev, { role: "system", text: "AI Architect has gathered all requirements. Initiating build process..." }]);
            processBuild(newTranscript);
