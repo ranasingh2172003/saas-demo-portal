@@ -10,6 +10,9 @@
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.11",
       "installTools": true
+    },
+    "ghcr.io/devcontainers/features/sshd:1": {
+      "version": "latest"
     }
   },
   "forwardPorts": [3000, 3001, 8880, 8881, 8998, 11434],
