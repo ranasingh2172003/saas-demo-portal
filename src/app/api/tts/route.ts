@@ -7,17 +7,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Text is required" }, { status: 400 });
     }
 
-    // Coqui XTTS running locally in the Codespace
-    const ttsUrl = process.env.TTS_URL || "http://localhost:8881/tts_to_audio/";
+    const ttsUrl = "http://localhost:8000/tts";
     
     const res = await fetch(ttsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        text: text,
-        speaker_wav: "default",
-        language: "en" 
-      })
+      body: JSON.stringify({ text })
     });
     
     if (!res.ok) {
