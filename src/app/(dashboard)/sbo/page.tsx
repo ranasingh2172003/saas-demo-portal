@@ -127,6 +127,25 @@ Available modules: Website, WhatsApp agent, Voice receptionist, Recruitment engi
 
       if (audioElementRef.current) {
         audioElementRef.current.src = blobUrl;
+        
+        // Failsafe: if onended doesn't fire, manually trigger it after duration
+        const fallbackAudioEnded = () => {
+          setIsSpeaking(false);
+          URL.revokeObjectURL(blobUrl);
+          if (isActiveRef.current && !isBuildingRef.current) {
+            startListening();
+          }
+        };
+
+        audioElementRef.current.onloadedmetadata = () => {
+          const duration = audioElementRef.current?.duration || 5;
+          setTimeout(() => {
+            if (isSpeakingRef.current) {
+              fallbackAudioEnded();
+            }
+          }, duration * 1000 + 500); // 500ms buffer
+        };
+
         audioElementRef.current.play().catch(() => {
           URL.revokeObjectURL(blobUrl);
           speakViaBrowser();
@@ -313,8 +332,8 @@ Available modules: Website, WhatsApp agent, Voice receptionist, Recruitment engi
           if (dataArray[i] > maxVol) maxVol = dataArray[i];
         }
         
-        // Threshold for speaking
-        if (maxVol > 15) {
+        // Threshold for speaking (increased to avoid fan noise)
+        if (maxVol > 30) {
           lastSpeechTimeRef.current = Date.now();
         } else {
           // If silent for > 1500ms, trigger stop
