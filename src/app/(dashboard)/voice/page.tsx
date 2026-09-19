@@ -1,23 +1,234 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Mic, Phone, PhoneOff, Settings2, Volume2 } from "lucide-react";
-import Modal from "@/components/Modal";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Mic, Phone, Settings2, PhoneOff, Volume2 } from "lucide-react";
 import { motion } from "framer-motion";
+import Modal from "@/components/Modal";
+import { useToast } from "@/components/Toast";
 
-export default function VoiceAgent() {
+interface TranscriptMessage {
+  role: "agent" | "user";
+  text: string;
+}
+
+export default function VoiceReceptionist() {
+  const toast = useToast();
   const [isActive, setIsActive] = useState(false);
   const [callSeconds, setCallSeconds] = useState(0);
-  const [transcript, setTranscript] = useState<{ role: string; text: string }[]>([]);
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [transcript, setTranscript] = useState<TranscriptMessage[]>([]);
+  const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // WebSocket for PersonaPlex (Moshi)
-  const wsRef = useRef<WebSocket | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  // Configuration Modal State
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [agentPersona, setAgentPersona] = useState(
+    "You are a friendly, conversational virtual receptionist for Apex Cooling & HVAC. Keep your answers short (1-2 sentences). Do not use lists or markdown. Speak casually."
+  );
+  const [greetingText, setGreetingText] = useState("Hi, this is Apex Cooling. How can I help you today?");
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const transcriptBottomRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const ttsQueueRef = useRef<string[]>([]);
+  const isSpeakingSentenceRef = useRef(false);
+  
+  // Refs to avoid stale closures inside event handlers
+  const isActiveRef = useRef(isActive);
+  const isSpeakingRef = useRef(isSpeaking);
+  const agentPersonaRef = useRef(agentPersona);
+  const transcriptRef = useRef(transcript);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
+  useEffect(() => { isSpeakingRef.current = isSpeaking; }, [isSpeaking]);
+  useEffect(() => { agentPersonaRef.current = agentPersona; }, [agentPersona]);
+  useEffect(() => { transcriptRef.current = transcript; }, [transcript]);
+
+  // Auto scroll transcript
+  useEffect(() => {
+    if (transcriptBottomRef.current) {
+      transcriptBottomRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [transcript]);
+
+  // ── Process TTS Queue ──
+  const processTTSQueue = useCallback(async () => {
+    if (isSpeakingSentenceRef.current || ttsQueueRef.current.length === 0) return;
+    
+    isSpeakingSentenceRef.current = true;
+    const text = ttsQueueRef.current.shift()!;
+    setIsSpeaking(true);
+
+    const onFinish = () => {
+       isSpeakingSentenceRef.current = false;
+       if (ttsQueueRef.current.length > 0) {
+         processTTSQueue();
+       } else {
+         setIsSpeaking(false);
+         // Resume listening after agent finishes speaking
+         if (isActiveRef.current && recognitionRef.current) {
+           try {
+             recognitionRef.current.start();
+             setIsListening(true);
+           } catch(e) {}
+         }
+       }
+    };
+
+    // Browser SpeechSynthesis fallback — works with zero external services
+    const speakViaBrowser = () => {
+      if (typeof window === "undefined" || !window.speechSynthesis) {
+        onFinish();
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      const voices = window.speechSynthesis.getVoices();
+      const preferred = voices.find(v =>
+        v.name.includes("Samantha") ||
+        v.name.includes("Google US English") ||
+        v.name.includes("Google UK English Female") ||
+        (v.lang === "en-US" && !v.name.includes("Google"))
+      );
+      if (preferred) utterance.voice = preferred;
+      utterance.onend = onFinish;
+      utterance.onerror = onFinish;
+      window.speechSynthesis.speak(utterance);
+    };
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, voice: "af_heart" }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) throw new Error("TTS failed");
+
+      const arrayBuffer = await res.arrayBuffer();
+      const audioBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContextRef.current.destination);
+      source.onended = onFinish;
+      source.start();
+    } catch {
+      speakViaBrowser();
+    }
+  }, []);
+
+  const queueSpeech = useCallback((text: string) => {
+    ttsQueueRef.current.push(text);
+    processTTSQueue();
+  }, [processTTSQueue]);
+
+  const processUserSpeech = useCallback(async (userText: string) => {
+    setIsListening(false);
+    // Use refs to get current transcript/persona without causing stale closure
+    const currentTranscript = transcriptRef.current;
+    const newTranscript = [...currentTranscript, { role: "user" as const, text: userText }];
+    setTranscript(newTranscript);
+
+    try {
+      const chatRes = await fetch("/api/voice/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemPrompt: agentPersonaRef.current,
+          messages: newTranscript.map(m => ({
+            role: m.role === "agent" ? "assistant" : "user",
+            content: m.text
+          }))
+        })
+      });
+
+      if (chatRes.ok && chatRes.body) {
+        const reader = chatRes.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let accumulatedText = "";
+        let sentenceBuffer = "";
+
+        // Add placeholder message for streaming text
+        setTranscript(prev => [...prev, { role: "agent", text: "" }]);
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          accumulatedText += chunk;
+          sentenceBuffer += chunk;
+          
+          // Update the transcript in the UI
+          setTranscript(prev => {
+            const updated = [...prev];
+            updated[updated.length - 1].text = accumulatedText;
+            return updated;
+          });
+
+          // Check for sentence boundaries (. ? !)
+          const match = sentenceBuffer.match(/([^.!?]+[.!?]+)(?:\s+|$)/);
+          if (match) {
+            const sentence = match[1];
+            sentenceBuffer = sentenceBuffer.replace(sentence, "").trim();
+            queueSpeech(sentence.trim());
+          }
+        }
+        
+        // Queue any remaining text
+        if (sentenceBuffer.trim()) {
+           queueSpeech(sentenceBuffer.trim());
+        }
+      }
+    } catch(e) {
+      console.error("Voice chat error:", e);
+    }
+  }, [queueSpeech]);
+
+  // Initialize SpeechRecognition ONCE. Use refs for all callbacks to avoid stale closures.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event: any) => {
+      const text = event.results[0][0].transcript;
+      if (text.trim().length > 0) {
+        processUserSpeech(text);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      // Use refs — not captured state — to avoid stale closures
+      if (isActiveRef.current && !isSpeakingRef.current) {
+        setTimeout(() => {
+          if (isActiveRef.current && !isSpeakingRef.current) {
+            try {
+              recognition.start();
+              setIsListening(true);
+            } catch(e) {}
+          }
+        }, 500);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processUserSpeech]); // Only re-run if processUserSpeech identity changes (it's stable via useCallback)
 
   // Call Duration Ticker
   useEffect(() => {
@@ -35,103 +246,25 @@ export default function VoiceAgent() {
   }, [isActive]);
 
   const handleStartCall = async () => {
-    try {
-      // 1. Get Microphone Access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      // 2. Setup AudioContext for sending PCM to Moshi and playing audio back
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-      audioContextRef.current = audioCtx;
-      
-      // 3. Setup WebSocket to PersonaPlex Server (Port 8998)
-      // Since Codespace forwards ports, we connect to the forwarded URL or localhost
-      const wsUrl = window.location.hostname.includes('github.dev') 
-          ? `wss://${window.location.hostname.replace('3000', '8998')}/chat`
-          : 'ws://localhost:8998/chat';
-          
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setTranscript((prev) => [...prev, { role: "system", text: "Connected to PersonaPlex (Moshi) Server." }]);
-        setIsActive(true);
-        setCallSeconds(0);
-      };
-
-      ws.onmessage = async (event) => {
-        // Moshi returns audio frames (binary) and transcript (JSON text)
-        if (typeof event.data === "string") {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.text) {
-              setTranscript((prev) => [...prev, { role: "agent", text: data.text }]);
-            }
-          } catch (e) {
-            console.error("Failed to parse Moshi text frame", e);
-          }
-        } else if (event.data instanceof Blob) {
-          // Play the audio frame returned by Moshi
-          setIsSpeaking(true);
-          const arrayBuffer = await event.data.arrayBuffer();
-          audioCtx.decodeAudioData(arrayBuffer, (audioBuffer) => {
-            const source = audioCtx.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(audioCtx.destination);
-            source.onended = () => setIsSpeaking(false);
-            source.start(0);
-          });
-        }
-      };
-
-      ws.onclose = () => {
-        handleEndCall();
-      };
-
-      // 4. Capture Mic Audio and stream to WebSocket
-      const source = audioCtx.createMediaStreamSource(stream);
-      microphoneRef.current = source;
-      
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
-      
-      source.connect(processor);
-      processor.connect(audioCtx.destination);
-      
-      processor.onaudioprocess = (e) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          const inputData = e.inputBuffer.getChannelData(0);
-          // Convert Float32 to Int16 PCM (Moshi expects 16-bit PCM)
-          const pcm16 = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            pcm16[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-          }
-          ws.send(pcm16.buffer);
-        }
-      };
-      
-    } catch (err) {
-      console.error("Failed to start call:", err);
-      setTranscript((prev) => [...prev, { role: "system", text: "Error: Could not connect to PersonaPlex server or access microphone." }]);
-    }
+    setTranscript([{ role: "agent", text: greetingText }]);
+    setCallSeconds(0);
+    setIsActive(true);
+    
+    // Agent speaks greeting
+    queueSpeech(greetingText);
   };
 
   const handleEndCall = () => {
     setIsActive(false);
+    setIsListening(false);
     setIsSpeaking(false);
-    
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    ttsQueueRef.current = [];
+    isSpeakingSentenceRef.current = false;
+    if (recognitionRef.current) recognitionRef.current.stop();
+    // Stop browser SpeechSynthesis if it's currently speaking
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
-    if (processorRef.current && microphoneRef.current) {
-      microphoneRef.current.disconnect();
-      processorRef.current.disconnect();
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
-    
-    setTranscript((prev) => [...prev, { role: "system", text: "Call Ended." }]);
   };
 
   return (
@@ -140,7 +273,7 @@ export default function VoiceAgent() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Voice Receptionist</h1>
           <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm">
-            Powered by NVIDIA PersonaPlex (Moshi) Full-Duplex Audio
+            Powered by Gemini 2.5 Flash and Kokoro TTS.
           </p>
         </div>
         <button
@@ -159,15 +292,15 @@ export default function VoiceAgent() {
               <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
                 <Mic className="w-8 h-8 text-slate-400" />
               </div>
-              <h2 className="text-xl font-bold mb-2">PersonaPlex Idle</h2>
+              <h2 className="text-xl font-bold mb-2">Agent Idle</h2>
               <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-8">
-                Ready to take full-duplex conversational calls.
+                Ready to take incoming voice calls.
               </p>
               <button
                 onClick={handleStartCall}
                 className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center gap-2"
               >
-                <Phone className="w-5 h-5" /> Connect via WebSocket
+                <Phone className="w-5 h-5" /> Start Test Call
               </button>
             </div>
           )}
@@ -187,17 +320,19 @@ export default function VoiceAgent() {
                     className="absolute inset-0 bg-blue-500 rounded-full blur-xl"
                   />
                 )}
-                <div className={`w-32 h-32 rounded-full flex items-center justify-center relative z-10 border-4 transition-colors duration-500 ${isSpeaking ? 'border-blue-500 bg-blue-500/10' : 'border-green-500 bg-green-500/10'}`}>
+                <div className={`w-32 h-32 rounded-full flex items-center justify-center relative z-10 border-4 transition-colors duration-500 ${isSpeaking ? 'border-blue-500 bg-blue-500/10' : isListening ? 'border-green-500 bg-green-500/10' : 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800'}`}>
                   {isSpeaking ? (
                     <Volume2 className="w-12 h-12 text-blue-500 animate-pulse" />
-                  ) : (
+                  ) : isListening ? (
                     <Mic className="w-12 h-12 text-green-500" />
+                  ) : (
+                    <Phone className="w-12 h-12 text-slate-400" />
                   )}
                 </div>
               </div>
 
               <div className="h-6 text-sm font-medium mb-12 text-center text-slate-600 dark:text-slate-300">
-                {isSpeaking ? "AI is speaking..." : "Listening & Processing..."}
+                {isSpeaking ? "AI is speaking..." : isListening ? "Listening..." : "Processing..."}
               </div>
 
               <button
@@ -216,22 +351,23 @@ export default function VoiceAgent() {
             <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex justify-between items-center">
               <h3 className="font-bold text-sm flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                WebSocket Feed
+                Live Transcript
               </h3>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {transcript.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === "system" ? "justify-center" : "justify-start"}`}>
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[80%] rounded-2xl p-4 ${
-                    msg.role === "system" 
-                      ? "bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs text-center border border-slate-200 dark:border-slate-700" 
-                      : "bg-blue-50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 rounded-bl-none border border-blue-100 dark:border-blue-800"
+                    msg.role === "user" 
+                      ? "bg-blue-600 text-white rounded-br-none" 
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white rounded-bl-none border border-slate-200 dark:border-slate-700"
                   }`}>
                     <p className="text-sm leading-relaxed">{msg.text}</p>
                   </div>
                 </div>
               ))}
+              <div ref={transcriptBottomRef} />
             </div>
           </div>
         </div>
@@ -240,12 +376,17 @@ export default function VoiceAgent() {
       <Modal
         isOpen={isConfigOpen}
         onClose={() => setIsConfigOpen(false)}
-        title="PersonaPlex Configuration"
+        title="Configure AI Receptionist Persona"
       >
         <div className="space-y-4">
-          <p className="text-xs text-slate-500">
-            Note: PersonaPlex runs entirely on WebSockets and streams raw audio natively. System prompts must be configured on the Moshi Python backend, not the frontend.
-          </p>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5">Initial Greeting Text</label>
+            <input type="text" value={greetingText} onChange={(e) => setGreetingText(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider mb-1.5">AI Persona System Prompt</label>
+            <textarea rows={4} value={agentPersona} onChange={(e) => setAgentPersona(e.target.value)} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-xs focus:ring-2 focus:ring-blue-500" />
+          </div>
         </div>
       </Modal>
     </div>
