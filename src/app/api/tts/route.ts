@@ -8,16 +8,22 @@ export async function POST(req: Request) {
     }
 
     // Coqui XTTS running locally in the Codespace
-    const ttsUrl = process.env.TTS_URL || "http://localhost:8881/v1/audio/speech";
+    const ttsUrl = process.env.TTS_URL || "http://localhost:8881/tts_to_audio/";
     
     const res = await fetch(ttsUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ input: text })
+      body: JSON.stringify({ 
+        text: text,
+        speaker_wav: "default",
+        language: "en" 
+      })
     });
     
     if (!res.ok) {
-      return NextResponse.json({ error: "Local TTS failed" }, { status: res.status });
+      const errText = await res.text();
+      console.error("TTS Server Error:", errText);
+      return NextResponse.json({ error: `Local TTS failed: ${res.status}` }, { status: res.status });
     }
     
     const audioBuffer = await res.arrayBuffer();
