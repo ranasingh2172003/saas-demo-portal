@@ -6,11 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "test": "karma start",
-    "e2e": "cypress open",
-    "e2e:headless": "cypress run",
-    "release": "standard-version"
+    "lint": "eslint"
   },
   "dependencies": {
     "@google/genai": "^2.22.0",
@@ -29,15 +25,8 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "cypress": "^16.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
-    "jasmine-core": "^7.0.2",
-    "karma": "^6.4.4",
-    "karma-chrome-launcher": "^3.2.0",
-    "karma-jasmine": "^5.1.0",
-    "selenium-webdriver": "^4.49.0",
-    "standard-version": "^9.5.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
