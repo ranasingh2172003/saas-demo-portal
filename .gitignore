@@ -42,3 +42,10 @@ next-env.d.ts
 
 # Oracle Local Credentials (Do not commit)
 .oracle_credentials/
+requirements.txt
+__pycache__
+agent.py
+ai_server.py
+start_agent.sh
+.venv
+venv
