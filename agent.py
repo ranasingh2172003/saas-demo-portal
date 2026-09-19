@@ -121,15 +121,16 @@ class LocalSTTStream(stt.SpeechStream):
 
 
 async def entrypoint(ctx: JobContext):
-    initial_ctx = llm.ChatContext().append(
-        role="system",
-        text=(
-            "You are Apex, the elite AI Systems Architect. "
-            "Keep your replies very brief and conversational. "
-            "Once you have gathered enough specific details to confidently build their exact request, "
-            "reply with ONLY this exact phrase: [INITIATE_BUILD]."
-        ),
-    )
+    initial_ctx = llm.ChatContext(messages=[
+        llm.ChatMessage(
+            role="system",
+            content=(
+                "You are Apex, a friendly and concise AI voice assistant for Apex Cooling SaaS. "
+                "Keep your replies very short and conversational — 1 to 2 sentences max. "
+                "Be warm and helpful."
+            ),
+        )
+    ])
 
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
