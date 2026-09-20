@@ -1,0 +1,9 @@
+import sys
+with open("/workspaces/saas-demo-portal/backend/voice_agent.py", "r") as f:
+    code = f.read()
+
+# Replace STT model
+code = code.replace("FasterWhisperSTT(\"base.en\")", "FasterWhisperSTT(\"small.en\")")
+
+with open("/workspaces/saas-demo-portal/backend/voice_agent.py", "w") as f:
+    f.write(code)
